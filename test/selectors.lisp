@@ -75,9 +75,14 @@
 			  ".box.layout[id=footer]:has( .contact-info > .name + .phone )"
 			  ".box.layout[id=footer]:last-child")
 	       (,+header+ " #header:nth-last-child( 4n-1 )"
-			  "#header:first-child")
-	       (,(dom:parent-node +header+)
+			  "#header:first-child"
+                          "div div#header"
+                          "div#page div#header")
+	       (,(first (last (css::parent-elements +header+)))
 		 ":only-child"
+		 "*:only-child")
+               (,(first (css::child-elements +footer+))
+                ":only-child"
 		 "*:only-child")))
 	(iter (for s in selectors)
 	      (in top (collect (list n s))))))
@@ -87,7 +92,7 @@
 	(collect (list n (parse-results selector)))))
 
 (defparameter +nodes-and-matching-selectors-compiled+
-  (iter (for (n form) in +nodes-and-matching-selectors-parsed+)	
+  (iter (for (n form) in +nodes-and-matching-selectors-parsed+)
 	(collect (list n (compile-css-node-matcher form)))))
 
 (deftest test-parser-speed (parser compiler speed)
@@ -102,10 +107,11 @@
 			   n selector))))
 
 (deftest test-compiler-execution-speed (compiler execution-speed speed)
-  (iter (for i from 0 to 1000)
-	(iter (for (n  selector) in +nodes-and-matching-selectors-compiled+)
-	      (assert-true (%node-matches? n selector)
-			   n selector))))
+  (iter (for i from 0 to 1)
+    (iter (for (n  selector) in +nodes-and-matching-selectors-compiled+)
+      (for (_ text-selector) in +nodes-and-matching-selectors+)
+      (assert-true (%node-matches? n selector)
+                   n text-selector))))
 
 (deftest test-matcher (matcher)
   (iter (for (n  selector) in +nodes-and-matching-selectors-compiled+)
@@ -119,11 +125,31 @@
   (assert-eql 7 (length (query "div" +doc+)))
   (assert-eql +header+ (first (query "#page > div#header" +doc+)))
   (assert-eql +header+ (first (query "#page div#header" +doc+)))
-  (assert-false (first (query "div#page" (query "div#page" +doc+)))))
+  (assert-true (first (query "div#page" (query "div#page" +doc+)))))
 
 (defun test-css-compilation-result-compilation ()
-  (with-document (css:query "html")))
+  (buildnode:with-document (css:query "html")))
 
 (deftest test-parent-overflow (compiler)
  (css:query "q > html" +doc+))
+
+(defun parse-xml (string)
+  (cxml:parse string (cxml-dom:make-dom-builder)))
+
+(defparameter +issue-8-doc+
+  (parse-xml "<div id=\"it\" class=\"first\"><div class=\"second\"><div></div></div></div>"))
+
+(deftest select-failing-child-relationships (parse issue-8)
+  (assert-eql
+   1
+   (length
+    (css:query "div > div > div" +issue-8-doc+)))
+  (assert-eql
+   1
+   (length
+    (css:query ".first > .second > div" +issue-8-doc+)))
+  (assert-eql
+   1
+   (length
+    (css:query "#it > .second > div" +issue-8-doc+))))
 
